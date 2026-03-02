@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Sparkles, MessageCircle, Send, CheckCircle2, Clock, Calendar, Lightbulb, RefreshCw } from 'lucide-react'
-import { getTask, decomposeTask, askClarification, respondToClarification, updateTaskStatus, clarifySubTask, updateSubTaskStatus } from '../services/api'
+import { getTask, decomposeTask, askClarification, respondToClarification, updateTaskStatus, clarifySubTask, chatWithSubTask, updateSubTaskStatus } from '../services/api'
 
 const STATUS_STYLES = {
   PENDING: 'bg-slate-100 text-slate-600',
@@ -20,7 +20,9 @@ export default function TaskDetailPage() {
   const [aiLoading, setAiLoading] = useState(false)
   const [subTaskAdvice, setSubTaskAdvice] = useState({})
   const [subTaskLoading, setSubTaskLoading] = useState(null)
-  const [adviceModal, setAdviceModal] = useState(null)
+  const [chatModal, setChatModal] = useState(null)
+  const [chatMessages, setChatMessages] = useState({})
+  const [chatInput, setChatInput] = useState('')
 
   useEffect(() => {
     loadTask()
@@ -81,15 +83,43 @@ export default function TaskDetailPage() {
     }
   }
 
-  const handleSubTaskClarify = async (subTaskId, subTaskTitle) => {
+  const handleSubTaskChat = async (subTaskId, subTaskTitle) => {
+    // Initialize chat if not exists
+    if (!chatMessages[subTaskId]) {
+      setChatMessages(prev => ({ ...prev, [subTaskId]: [] }))
+    }
+    setChatModal({ subTaskId, title: subTaskTitle })
+  }
+
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim() || !chatModal) return
+
+    const subTaskId = chatModal.subTaskId
+    const userMsg = chatInput.trim()
+    
+    // Add user message
+    setChatMessages(prev => ({
+      ...prev,
+      [subTaskId]: [...(prev[subTaskId] || []), { role: 'user', message: userMsg }]
+    }))
+    setChatInput('')
     setSubTaskLoading(subTaskId)
+
     try {
-      const res = await clarifySubTask(subTaskId)
-      const advice = res.data.message
-      setSubTaskAdvice(prev => ({ ...prev, [subTaskId]: advice }))
-      setAdviceModal({ subTaskId, title: subTaskTitle, advice })
+      const res = await chatWithSubTask(subTaskId, userMsg)
+      const aiMsg = res.data.message
+      
+      // Add AI response
+      setChatMessages(prev => ({
+        ...prev,
+        [subTaskId]: [...prev[subTaskId], { role: 'assistant', message: aiMsg }]
+      }))
     } catch (err) {
-      console.error('子任务细化失败:', err)
+      console.error('子任务对话失败:', err)
+      setChatMessages(prev => ({
+        ...prev,
+        [subTaskId]: [...prev[subTaskId], { role: 'system', message: '对话失败，请重试' }]
+      }))
     } finally {
       setSubTaskLoading(null)
     }
@@ -212,22 +242,12 @@ export default function TaskDetailPage() {
                       {!isCompleted && (
                         <div className="flex items-center gap-2 mt-2">
                           <button
-                            onClick={() => handleSubTaskClarify(sub.id, sub.title)}
-                            disabled={isLoading}
-                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition-colors disabled:opacity-50"
+                            onClick={() => handleSubTaskChat(sub.id, sub.title)}
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition-colors"
                           >
-                            {isLoading ? <RefreshCw size={12} className="animate-spin" /> : <Lightbulb size={12} />}
-                            {advice ? '重新获取指导' : 'AI 执行指导'}
+                            <MessageCircle size={12} />
+                            AI 对话指导
                           </button>
-                          {advice && (
-                            <button
-                              onClick={() => setAdviceModal({ subTaskId: sub.id, title: sub.title, advice })}
-                              className="inline-flex items-center gap-1 text-xs px-2.5 py-1 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                            >
-                              <Lightbulb size={12} />
-                              查看指导
-                            </button>
-                          )}
                         </div>
                       )}
                     </div>
@@ -289,46 +309,83 @@ export default function TaskDetailPage() {
           </form>
         </div>
       )}
-      {/* AI Advice Modal */}
-      {adviceModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setAdviceModal(null)}>
+      {/* SubTask Chat Modal */}
+      {chatModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setChatModal(null)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div
-            className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[80vh] overflow-hidden animate-slideUp"
+            className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[80vh] overflow-hidden animate-slideUp flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-white">
-                  <Lightbulb size={18} />
-                  <span className="font-semibold">AI 执行指导</span>
+                  <MessageCircle size={18} />
+                  <span className="font-semibold">AI 对话指导</span>
                 </div>
                 <button
-                  onClick={() => setAdviceModal(null)}
+                  onClick={() => setChatModal(null)}
                   className="text-white/70 hover:text-white transition-colors"
                 >
                   ✕
                 </button>
               </div>
-              <div className="text-purple-100 text-sm mt-1">{adviceModal.title}</div>
+              <div className="text-purple-100 text-sm mt-1">{chatModal.title}</div>
             </div>
 
-            {/* Content */}
-            <div className="px-6 py-5 overflow-y-auto max-h-[60vh]">
-              <div className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
-                {adviceModal.advice}
+            {/* Messages */}
+            <div className="flex-1 px-6 py-4 overflow-y-auto min-h-0">
+              {chatMessages[chatModal.subTaskId]?.length === 0 && (
+                <div className="text-center text-slate-400 text-sm py-8">
+                  👋 有什么问题可以问我，比如：<br />
+                  <span className="text-xs">"这个子任务需要用到什么工具？"</span>
+                </div>
+              )}
+              <div className="space-y-3">
+                {chatMessages[chatModal.subTaskId]?.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${
+                      msg.role === 'user' 
+                        ? 'bg-purple-600 text-white' 
+                        : msg.role === 'system'
+                        ? 'bg-slate-100 text-slate-500'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {msg.message}
+                    </div>
+                  </div>
+                ))}
+                {subTaskLoading === chatModal.subTaskId && (
+                  <div className="flex justify-start">
+                    <div className="bg-slate-100 text-slate-500 px-4 py-2 rounded-2xl text-sm">
+                      <RefreshCw size={14} className="inline animate-spin mr-1" />
+                      思考中...
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="px-6 py-3 border-t border-slate-100 flex justify-end">
-              <button
-                onClick={() => setAdviceModal(null)}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg font-medium transition-colors"
-              >
-                知道了
-              </button>
+            {/* Input */}
+            <div className="px-6 py-3 border-t border-slate-100 flex-shrink-0">
+              <form onSubmit={(e) => { e.preventDefault(); handleSendChatMessage(); }} className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="输入你的问题..."
+                  className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  disabled={subTaskLoading === chatModal.subTaskId}
+                />
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim() || subTaskLoading === chatModal.subTaskId}
+                  className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-300 text-white rounded-lg transition-colors"
+                >
+                  <Send size={16} />
+                </button>
+              </form>
             </div>
           </div>
         </div>

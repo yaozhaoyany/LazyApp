@@ -89,6 +89,26 @@ public class AIService {
     }
 
     /**
+     * AI 子任务对话：支持用户输入具体问题进行多轮对话
+     */
+    @Transactional
+    public String chatWithSubTask(SubTask subTask, String userMessage) {
+        Task parentTask = subTask.getTask();
+        
+        // 保存用户消息
+        saveConversation(parentTask, "user", userMessage);
+        
+        // 构建包含子任务上下文的 prompt
+        String prompt = buildSubTaskChatPrompt(parentTask, subTask, userMessage);
+        String response = callAI(prompt);
+        
+        // 保存 AI 回复
+        saveConversation(parentTask, "assistant", response);
+        
+        return response;
+    }
+
+    /**
      * AI 回复用户的澄清答案
      */
     @Transactional
@@ -238,6 +258,37 @@ public class AIService {
         sb.append("2. 可能遇到的困难和解决建议\n");
         sb.append("3. 推荐的工具或资源\n");
         sb.append("简洁实用，不要空话。");
+        return sb.toString();
+    }
+
+    private String buildSubTaskChatPrompt(Task parentTask, SubTask subTask, String userMessage) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是一个智能任务管理秘书。用户正在执行一个子任务，需要你的帮助。\n\n");
+        sb.append("大任务: ").append(parentTask.getTitle()).append("\n");
+        if (parentTask.getDescription() != null) {
+            sb.append("大任务描述: ").append(parentTask.getDescription()).append("\n");
+        }
+        sb.append("\n当前子任务: ").append(subTask.getTitle()).append("\n");
+        if (subTask.getDescription() != null) {
+            sb.append("子任务描述: ").append(subTask.getDescription()).append("\n");
+        }
+        if (subTask.getEstimatedHours() != null) {
+            sb.append("预计耗时: ").append(subTask.getEstimatedHours()).append("小时\n");
+        }
+        
+        // 获取相关对话历史（最近10条）
+        List<AIConversation> history = aiConversationRepository.findByTaskIdOrderByCreatedAtAsc(parentTask.getId());
+        if (!history.isEmpty()) {
+            sb.append("\n对话记录:\n");
+            int start = Math.max(0, history.size() - 10);
+            for (int i = start; i < history.size(); i++) {
+                AIConversation conv = history.get(i);
+                sb.append(conv.getRole()).append(": ").append(conv.getMessage()).append("\n");
+            }
+        }
+        
+        sb.append("\n用户当前问题: ").append(userMessage).append("\n\n");
+        sb.append("请针对用户的问题，结合子任务的上下文，给出具体、实用的建议。用中文回复。");
         return sb.toString();
     }
 

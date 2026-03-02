@@ -26,6 +26,8 @@ export const skipDay = () => api.post('/ai/plan/skip-day')
 export const updateTaskDeadline = (taskId, newDeadline) =>
   api.patch(`/ai/tasks/${taskId}/deadline?newDeadline=${newDeadline}`)
 export const clarifySubTask = (subTaskId) => api.post(`/ai/subtasks/${subTaskId}/clarify`)
+export const chatWithSubTask = (subTaskId, message) =>
+  api.post(`/ai/subtasks/${subTaskId}/chat`, { message })
 export const updateSubTaskStatus = (subTaskId, status) =>
   api.patch(`/ai/subtasks/${subTaskId}/status?status=${status}`)
 

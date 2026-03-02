@@ -88,6 +88,18 @@ public class AIController {
         return ResponseEntity.ok(Map.of("message", response));
     }
 
+    @PostMapping("/subtasks/{subTaskId}/chat")
+    public ResponseEntity<Map<String, String>> chatWithSubTask(
+            @PathVariable Long subTaskId,
+            @Valid @RequestBody AIMessageRequest request) {
+        log.info("[AI] 子任务对话 subTaskId={}, messageLength={}", subTaskId, request.getMessage().length());
+        SubTask subTask = subTaskRepository.findById(subTaskId)
+                .orElseThrow(() -> new RuntimeException("子任务不存在"));
+        String response = aiService.chatWithSubTask(subTask, request.getMessage());
+        log.info("[AI] 子任务对话完成 subTaskId={}, responseLength={}", subTaskId, response.length());
+        return ResponseEntity.ok(Map.of("message", response));
+    }
+
     @PatchMapping("/subtasks/{subTaskId}/status")
     public ResponseEntity<Map<String, String>> updateSubTaskStatus(
             @PathVariable Long subTaskId,

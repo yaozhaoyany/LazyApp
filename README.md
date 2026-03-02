@@ -81,7 +81,8 @@ cd frontend && npm install && npm run dev
 | POST | /api/ai/tasks/:id/respond | 回复 AI 追问 |
 | POST | /api/ai/plan/daily | 生成每日计划 |
 | POST | /api/ai/plan/skip-day | 今天摸鱼 🐟 |
-| POST | /api/ai/subtasks/:id/clarify | AI 子任务执行指导 |
+| POST | /api/ai/subtasks/:id/clarify | AI 子任务执行指导（一次性） |
+| POST | /api/ai/subtasks/:id/chat | AI 子任务对话指导（多轮） |
 | PATCH | /api/ai/subtasks/:id/status | 更新子任务状态 |
 | PATCH | /api/ai/tasks/:id/deadline | 更新任务截止日期 |
 
