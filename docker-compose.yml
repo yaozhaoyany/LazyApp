@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: lazyapp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lazyapp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Spring Boot Backend
+  backend:
+    build: ./backend
+    container_name: lazyapp-backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/lazyapp
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-postgres}
+      AI_API_KEY: ${AI_API_KEY:-your-api-key-here}
+      AI_BASE_URL: ${AI_BASE_URL:-https://generativelanguage.googleapis.com}
+      AI_MODEL: ${AI_MODEL:-gemini-2.0-flash}
+    ports:
+      - "8080:8080"
+
+  # React Frontend (Nginx)
+  frontend:
+    build: ./frontend
+    container_name: lazyapp-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:

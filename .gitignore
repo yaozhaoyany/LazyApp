@@ -1,0 +1,36 @@
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+target/
+*.jar
+*.war
+*.ear
+
+# Build outputs
+dist/
+build/
+
+# Docker
+.dockerignore
+
+# Temporary files
+*.tmp
+*.bak
